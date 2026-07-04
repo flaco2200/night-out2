@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Night Out — Group Drink Counter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Space+Grotesk:wght@400;500;700&display=swap');
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    min-height: 100vh;
+    background: radial-gradient(1200px 600px at 70% -10%, #2B1B4D 0%, #14101F 55%, #0C0A12 100%);
+    color: #F2F0F7;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    padding: 20px 16px 60px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  button { cursor: pointer; font-family: 'Space Grotesk', system-ui; }
+  button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  input:focus-visible { outline: 2px solid #4DE1FF; outline-offset: 1px; }
+
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  h1 { font-family: 'Unbounded', sans-serif; font-weight: 900; font-size: clamp(24px, 6vw, 34px); letter-spacing: .02em; }
+  h1 span { color: #FF5C8A; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .group-total { text-align: right; line-height: 1; }
+  .group-total .num { display: block; font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 28px; color: #FFD24D; }
+  .group-total .label { font-size: 11px; color: #8A8FA3; text-transform: uppercase; letter-spacing: .1em; }
+  .reset-btn { background: transparent; border: 1px solid #3A3550; color: #B9B4CC; border-radius: 999px; padding: 8px 14px; font-size: 13px; }
+
+  .room-line { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 13px; color: #8A8FA3; flex-wrap: wrap; }
+  .room-pill { background: #221D36; border: 1px solid #3A3550; color: #4DE1FF; border-radius: 999px; padding: 4px 12px; font-weight: 700; }
+  .link-btn { background: transparent; border: none; color: #B9B4CC; text-decoration: underline; font-size: 13px; padding: 0; }
+
+  .join { text-align: center; padding: 40px 12px; }
+  .join .glass { font-size: 44px; }
+  .join h2 { font-family: 'Unbounded', sans-serif; margin: 12px 0 6px; font-size: 20px; }
+  .join p { color: #8A8FA3; margin-bottom: 18px; font-size: 14px; }
+  .join-row { display: flex; gap: 8px; max-width: 400px; margin: 0 auto; }
+
+  .status { text-align: center; font-size: 12px; margin-bottom: 14px; }
+  .status.on { color: #7CFF6B; }
+  .status.off { color: #FF9E4D; }
+
+  .round-bar { background: rgba(255,255,255,.04); border: 1px solid #2E2842; border-radius: 16px; padding: 14px; margin-bottom: 18px; }
+  .hidden { display: none !important; }
+  .round-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: #8A8FA3; margin-bottom: 10px; }
+  .round-btns { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+  .round-btn { display: flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(180deg, #2A2440, #201B33); border: 1px solid #3A3550; color: #F2F0F7; border-radius: 12px; padding: 12px 10px; font-size: 14px; font-weight: 700; }
+  .round-btn .emoji { font-size: 22px; }
+
+  .add-row { display: flex; gap: 8px; margin-bottom: 20px; }
+  .txt { flex: 1; background: #1B1728; border: 1px solid #332D4A; color: #F2F0F7; border-radius: 12px; padding: 13px 16px; font-size: 16px; font-family: 'Space Grotesk', system-ui; }
+  .cta { background: #4DE1FF; color: #0C0A12; border: none; border-radius: 12px; padding: 13px 20px; font-weight: 700; font-size: 15px; }
+
+  .empty { text-align: center; padding: 48px 12px; }
+  .empty .glass { font-size: 40px; }
+  .empty p { margin-top: 8px; color: #8A8FA3; }
+
+  .grid { display: grid; gap: 14px; }
+  .card { background: #1B1728; border: 1px solid #2E2842; border-radius: 16px; padding: 16px; animation: popIn .25s ease; }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .p-name { font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 18px; }
+  .last-drink { font-size: 12px; color: #8A8FA3; margin-top: 2px; }
+  .big-count { font-family: 'Unbounded', sans-serif; font-weight: 900; font-size: 32px; }
+
+  .drink-rows { display: grid; gap: 8px; }
+  .drink-row { display: flex; justify-content: space-between; align-items: center; background: #221D36; border-radius: 10px; padding: 8px 10px 8px 14px; }
+  .drink-name { font-size: 15px; }
+  .counter { display: flex; align-items: center; gap: 10px; }
+  .minus { width: 40px; height: 40px; border-radius: 10px; border: 1px solid #3A3550; background: transparent; color: #B9B4CC; font-size: 20px; line-height: 1; }
+  .plus { width: 40px; height: 40px; border-radius: 10px; border: none; color: #0C0A12; font-size: 22px; font-weight: 700; line-height: 1; }
+  .count-num { min-width: 24px; text-align: center; font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .remove-btn { margin-top: 12px; background: transparent; border: none; color: #5E5875; font-size: 12px; padding: 0; text-decoration: underline; }
+
+  /* Leaderboard */
+  .board { background: rgba(255,255,255,.04); border: 1px solid #2E2842; border-radius: 16px; padding: 16px; margin-bottom: 18px; }
+  .board-title { font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 12px; color: #FFD24D; }
+  .board-row { display: grid; grid-template-columns: 28px minmax(60px, 110px) 1fr 34px; align-items: center; gap: 10px; padding: 6px 0; }
+  .board-rank { font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 14px; color: #8A8FA3; text-align: center; }
+  .board-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .board-bar { height: 22px; background: #221D36; border-radius: 6px; overflow: hidden; display: flex; }
+  .board-seg { height: 100%; transition: width .4s ease; }
+  .board-total { font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 15px; text-align: right; }
+  .board-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 12px; color: #8A8FA3; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  footer { text-align: center; margin-top: 28px; font-size: 13px; color: #8A8FA3; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2A2440; border: 1px solid #4DE1FF; color: #F2F0F7; border-radius: 999px; padding: 12px 20px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,.5); animation: popIn .2s ease; z-index: 10; }
+
+  @keyframes popIn { from { transform: translateY(8px); opacity: 0 } to { transform: none; opacity: 1 } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>NIGHT<span>OUT</span></h1>
+    <div class="header-right">
+      <div class="group-total">
+        <span class="num" id="groupTotal">0</span>
+        <span class="label">group total</span>
+      </div>
+      <button class="reset-btn hidden" id="resetBtn">New night</button>
+    </div>
+  </header>
+
+  <!-- Join a room -->
+  <div class="join" id="joinView">
+    <div class="glass">🥂</div>
+    <h2>Join your group's room</h2>
+    <p>Everyone who enters the same room code sees the same live counts.</p>
+    <div class="join-row">
+      <input class="txt" id="roomInput" placeholder="e.g. saturday-crew" maxlength="30">
+      <button class="cta" id="joinBtn">Join</button>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="appView" class="hidden">
+    <div class="room-line">
+      Room: <span class="room-pill" id="roomName"></span>
+      <button class="link-btn" id="copyLink">copy invite link</button>
+      <button class="link-btn" id="leaveRoom">switch room</button>
+    </div>
+    <div class="status off" id="status">connecting…</div>
+
+    <section class="round-bar hidden" id="roundBar">
+      <span class="round-label">Buy a round ↓ one for everyone</span>
+      <div class="round-btns" id="roundBtns"></div>
+    </section>
+
+    <section class="board hidden" id="board">
+      <div class="board-title">🏆 Leaderboard</div>
+      <div id="boardRows"></div>
+      <div class="board-legend" id="boardLegend"></div>
+    </section>
+
+    <div class="add-row">
+      <input class="txt" id="nameInput" placeholder="Who's out tonight?" maxlength="20">
+      <button class="cta" id="addBtn">+ Add</button>
+    </div>
+
+    <div class="empty" id="empty">
+      <div class="glass">🥂</div>
+      <p>Add everyone in the group to start counting.</p>
+    </div>
+
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <footer>Pace yourselves &amp; get home safe 💜 Counts sync live to everyone in the room.</footer>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue, update, remove, runTransaction, set, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCav4gzhwuRs6w7NmCZWQopRe-QquFX14Q",
+  authDomain: "night-out-dc3de.firebaseapp.com",
+  databaseURL: "https://night-out-dc3de-default-rtdb.firebaseio.com",
+  projectId: "night-out-dc3de",
+  storageBucket: "night-out-dc3de.firebasestorage.app",
+  messagingSenderId: "39561935067",
+  appId: "1:39561935067:web:0fe364f63e7030817534fe",
+  measurementId: "G-GGKL285CS0"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const NEON = ["#FF5C8A", "#4DE1FF", "#FFD24D", "#7CFF6B", "#C77DFF", "#FF9E4D"];
+const DRINKS = [
+  { id: "beer", label: "Beer", emoji: "🍺", color: "#FFD24D" },
+  { id: "wine", label: "Wine", emoji: "🍷", color: "#FF5C8A" },
+  { id: "cocktail", label: "Cocktail", emoji: "🍸", color: "#4DE1FF" },
+  { id: "shot", label: "Shot", emoji: "🥃", color: "#C77DFF" },
+];
+const MEDALS = ["🥇", "🥈", "🥉"];
+
+let room = null;
+let people = {}; // { id: {name, color, counts, lastDrinkAt} }
+let unsub = null;
+
+const $ = (id) => document.getElementById(id);
+const slug = (s) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const total = (p) => Object.values(p.counts || {}).reduce((a, b) => a + b, 0);
+
+function timeAgo(ts) {
+  if (!ts) return "no drinks yet";
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return m + "m ago";
+  return Math.floor(m / 60) + "h " + (m % 60) + "m ago";
+}
+
+function showToast(msg) {
+  document.querySelectorAll(".toast").forEach((t) => t.remove());
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1800);
+}
+
+// ── room handling ──
+function joinRoom(code) {
+  const r = slug(code);
+  if (!r) return;
+  room = r;
+  location.hash = "room=" + r;
+  $("roomName").textContent = r;
+  $("joinView").classList.add("hidden");
+  $("appView").classList.remove("hidden");
+
+  if (unsub) unsub();
+  const peopleRef = ref(db, "rooms/" + room + "/people");
+  unsub = onValue(peopleRef, (snap) => {
+    people = snap.val() || {};
+    $("status").textContent = "● live — everyone sees this";
+    $("status").className = "status on";
+    render();
+  }, (err) => {
+    $("status").textContent = "connection error — check Firebase config & rules";
+    $("status").className = "status off";
+    console.error(err);
+  });
+}
+
+function leaveRoom() {
+  if (unsub) unsub();
+  room = null; people = {};
+  location.hash = "";
+  $("appView").classList.add("hidden");
+  $("joinView").classList.remove("hidden");
+}
+
+// ── actions (all write to Firebase; UI updates via the live listener) ──
+function addPerson() {
+  const input = $("nameInput");
+  const name = input.value.trim();
+  if (!name || !room) return;
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const color = NEON[Object.keys(people).length % NEON.length];
+  set(ref(db, "rooms/" + room + "/people/" + id), {
+    name, color,
+    counts: { beer: 0, wine: 0, cocktail: 0, shot: 0 },
+    lastDrinkAt: null,
+    createdAt: serverTimestamp(),
+  });
+  input.value = "";
+}
+
+function bump(pid, did, delta) {
+  runTransaction(ref(db, "rooms/" + room + "/people/" + pid + "/counts/" + did),
+    (cur) => Math.max(0, (cur || 0) + delta));
+  if (delta > 0) {
+    update(ref(db, "rooms/" + room + "/people/" + pid), { lastDrinkAt: Date.now() });
+  }
+}
+
+function buyRound(did) {
+  const ids = Object.keys(people);
+  if (!ids.length) return;
+  ids.forEach((pid) => bump(pid, did, 1));
+  const d = DRINKS.find((d) => d.id === did);
+  showToast(d.emoji + " Round of " + d.label.toLowerCase() + "s for the table!");
+}
+
+function removePerson(pid) {
+  remove(ref(db, "rooms/" + room + "/people/" + pid));
+}
+
+function resetNight() {
+  if (!confirm("Start a fresh night? All counts reset for everyone.")) return;
+  const updates = {};
+  Object.keys(people).forEach((pid) => {
+    updates["rooms/" + room + "/people/" + pid + "/counts"] = { beer: 0, wine: 0, cocktail: 0, shot: 0 };
+    updates["rooms/" + room + "/people/" + pid + "/lastDrinkAt"] = null;
+  });
+  update(ref(db), updates);
+  showToast("🌙 New night started");
+}
+
+// ── render ──
+function render() {
+  const grid = $("grid");
+  grid.innerHTML = "";
+  const entries = Object.entries(people)
+    .sort((a, b) => (a[1].createdAt || 0) - (b[1].createdAt || 0));
+  const has = entries.length > 0;
+  $("empty").style.display = has ? "none" : "block";
+  $("roundBar").classList.toggle("hidden", !has);
+  $("resetBtn").classList.toggle("hidden", !has);
+  $("groupTotal").textContent = entries.reduce((a, [, p]) => a + total(p), 0);
+  renderBoard(entries);
+
+  entries.forEach(([pid, p]) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.borderTop = "3px solid " + (p.color || "#4DE1FF");
+
+    const rows = DRINKS.map((d) =>
+      '<div class="drink-row">' +
+        '<span class="drink-name">' + d.emoji + " " + d.label + "</span>" +
+        '<div class="counter">' +
+          '<button class="minus" data-p="' + pid + '" data-d="' + d.id + '" data-delta="-1" aria-label="Remove one ' + d.label + '">−</button>' +
+          '<span class="count-num">' + ((p.counts && p.counts[d.id]) || 0) + "</span>" +
+          '<button class="plus" style="background:' + p.color + '" data-p="' + pid + '" data-d="' + d.id + '" data-delta="1" aria-label="Add one ' + d.label + '">+</button>' +
+        "</div>" +
+      "</div>"
+    ).join("");
+
+    card.innerHTML =
+      '<div class="card-head">' +
+        "<div>" +
+          '<div class="p-name" style="color:' + (p.color || "#4DE1FF") + '"></div>' +
+          '<div class="last-drink">' + timeAgo(p.lastDrinkAt) + "</div>" +
+        "</div>" +
+        '<div class="big-count">' + total(p) + "</div>" +
+      "</div>" +
+      '<div class="drink-rows">' + rows + "</div>" +
+      '<button class="remove-btn" data-remove="' + pid + '">remove</button>';
+
+    card.querySelector(".p-name").textContent = p.name || "?"; // safe text insert
+    grid.appendChild(card);
+  });
+}
+
+// ── leaderboard ──
+function renderBoard(entries) {
+  const board = $("board");
+  const ranked = entries
+    .map(([pid, p]) => ({ pid, p, t: total(p) }))
+    .sort((a, b) => b.t - a.t);
+  const anyDrinks = ranked.some((r) => r.t > 0);
+  board.classList.toggle("hidden", !anyDrinks);
+  if (!anyDrinks) return;
+
+  const max = ranked[0].t || 1;
+  const rowsEl = $("boardRows");
+  rowsEl.innerHTML = "";
+
+  ranked.forEach((r, i) => {
+    const row = document.createElement("div");
+    row.className = "board-row";
+
+    // Stacked segments per drink type, scaled to the leader's total
+    const segs = DRINKS.map((d) => {
+      const v = (r.p.counts && r.p.counts[d.id]) || 0;
+      if (!v) return "";
+      const w = (v / max) * 100;
+      return '<div class="board-seg" style="width:' + w + '%; background:' + d.color + '" title="' + d.label + ': ' + v + '"></div>';
+    }).join("");
+
+    row.innerHTML =
+      '<div class="board-rank">' + (MEDALS[i] || (i + 1)) + "</div>" +
+      '<div class="board-name" style="color:' + (r.p.color || "#F2F0F7") + '"></div>' +
+      '<div class="board-bar">' + segs + "</div>" +
+      '<div class="board-total">' + r.t + "</div>";
+    row.querySelector(".board-name").textContent = r.p.name || "?";
+    rowsEl.appendChild(row);
+  });
+
+  $("boardLegend").innerHTML = DRINKS.map((d) =>
+    '<span class="legend-item"><span class="legend-dot" style="background:' + d.color + '"></span>' + d.emoji + " " + d.label + "</span>"
+  ).join("");
+}
+
+// ── wiring ──
+$("roundBtns").innerHTML = DRINKS.map((d) =>
+  '<button class="round-btn" data-round="' + d.id + '"><span class="emoji">' + d.emoji + "</span><span>" + d.label + "</span></button>"
+).join("");
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.delta) bump(b.dataset.p, b.dataset.d, parseInt(b.dataset.delta, 10));
+  else if (b.dataset.round) buyRound(b.dataset.round);
+  else if (b.dataset.remove) removePerson(b.dataset.remove);
+});
+$("addBtn").addEventListener("click", addPerson);
+$("nameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") addPerson(); });
+$("resetBtn").addEventListener("click", resetNight);
+$("joinBtn").addEventListener("click", () => joinRoom($("roomInput").value));
+$("roomInput").addEventListener("keydown", (e) => { if (e.key === "Enter") joinRoom($("roomInput").value); });
+$("leaveRoom").addEventListener("click", leaveRoom);
+$("copyLink").addEventListener("click", async () => {
+  const link = location.origin + location.pathname + "#room=" + room;
+  try { await navigator.clipboard.writeText(link); showToast("🔗 Invite link copied!"); }
+  catch { prompt("Copy this link:", link); }
+});
+
+// Auto-join from link (#room=xyz)
+const m = location.hash.match(/room=([a-z0-9-]+)/i);
+if (m) joinRoom(m[1]);
+
+// Refresh "time ago" every minute
+setInterval(render, 60000);
+</script>
+</body>
+</html>
