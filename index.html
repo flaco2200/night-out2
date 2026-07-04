@@ -85,6 +85,18 @@
   .legend-item { display: flex; align-items: center; gap: 5px; }
   .legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
+  /* Dare game */
+  .dare-box { background: rgba(255,255,255,.04); border: 1px solid #2E2842; border-radius: 16px; padding: 16px; margin-bottom: 18px; text-align: center; }
+  .dare-title { font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 10px; color: #7CFF6B; }
+  .dare-card { background: #221D36; border: 1px dashed #3A3550; border-radius: 12px; padding: 18px 14px; margin-bottom: 12px; animation: popIn .3s ease; }
+  .dare-who { font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+  .dare-text { font-size: 16px; line-height: 1.4; }
+  .dare-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+  .dare-done { background: #7CFF6B; color: #0C0A12; border: none; border-radius: 10px; padding: 12px 18px; font-weight: 700; font-size: 14px; }
+  .dare-pass { background: transparent; border: 1px solid #3A3550; color: #B9B4CC; border-radius: 10px; padding: 12px 18px; font-size: 14px; }
+  .dare-draw { background: linear-gradient(180deg, #2A2440, #201B33); border: 1px solid #7CFF6B; color: #7CFF6B; border-radius: 12px; padding: 13px 22px; font-weight: 700; font-size: 15px; }
+  .dare-hint { font-size: 12px; color: #8A8FA3; margin-top: 8px; }
+
   footer { text-align: center; margin-top: 28px; font-size: 13px; color: #8A8FA3; }
 
   .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2A2440; border: 1px solid #4DE1FF; color: #F2F0F7; border-radius: 999px; padding: 12px 20px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,.5); animation: popIn .2s ease; z-index: 10; }
@@ -131,6 +143,11 @@
       <button class="cta" id="addBtn">That's me</button>
     </div>
 
+    <section class="dare-box hidden" id="dareBox">
+      <div class="dare-title">🎲 Bar Dares</div>
+      <div id="dareArea"></div>
+    </section>
+
     <section class="board hidden" id="board">
       <div class="board-title">🏆 Leaderboard</div>
       <div id="boardRows"></div>
@@ -176,10 +193,45 @@ const DRINKS = [
 ];
 const MEDALS = ["🥇", "🥈", "🥉"];
 
+const DARES = [
+  "Get a stranger's name and one fun fact about them",
+  "Ask someone cute for their number — smooth lines only",
+  "Get the bartender to fist-bump you",
+  "Compliment three different strangers' outfits",
+  "Start a toast and get the next table to join in",
+  "Get a stranger to take a group photo — then invite them into it",
+  "Order your next drink in a whisper, no matter what they say",
+  "Get someone outside the group to recommend a song, then play/request it",
+  "Tell the bartender your worst joke and don't break character",
+  "Speak in an accent until your next dare",
+  "Get a high-five from a stranger in under 60 seconds",
+  "Convince someone your group is celebrating something absurd (be creative)",
+  "Ask the DJ or bartender what their dream job was as a kid",
+  "Dance for 15 seconds with zero music playing",
+  "Get a stranger to guess your name — they get 3 tries",
+  "Find someone wearing the same color as you and get a photo together",
+  "Ask a stranger for their best life advice and report back",
+  "Get someone to teach you a handshake in under a minute",
+  "Introduce two strangers to each other like you know them both",
+  "Get the table next to you to vote on your best dance move",
+  "Ask a staff member the weirdest thing they've seen this week",
+  "Trade a small item with a stranger for the rest of the night",
+  "Get a stranger to say 'cheers' in another language with you",
+  "Give an acceptance speech thanking everyone at the bar",
+  "Ask someone what song describes their life and write it down",
+  "Get a stranger to draw a portrait of you on a napkin",
+  "Find someone with the same birthday month as you",
+  "Do your best runway walk to the bathroom and back",
+  "Ask a group of strangers to rate your outfit out of 10",
+  "Get someone to arm-wrestle you (best of one, be gracious)",
+];
+
 let room = null;
 let me = null; // this device's person id in the current room
 let people = {}; // { id: {name, color, counts, lastDrinkAt} }
+let dare = null; // current shared dare { text, forPid, forName }
 let unsub = null;
+let unsubDare = null;
 
 const meKey = () => "nightout-me-" + room;
 
@@ -227,11 +279,18 @@ function joinRoom(code) {
     $("status").className = "status off";
     console.error(err);
   });
+
+  if (unsubDare) unsubDare();
+  unsubDare = onValue(ref(db, "rooms/" + room + "/dare"), (snap) => {
+    dare = snap.val() || null;
+    renderDare();
+  });
 }
 
 function leaveRoom() {
   if (unsub) unsub();
-  room = null; me = null; people = {};
+  if (unsubDare) unsubDare();
+  room = null; me = null; people = {}; dare = null;
   location.hash = "";
   $("appView").classList.add("hidden");
   $("joinView").classList.remove("hidden");
@@ -282,6 +341,58 @@ function removePerson(pid) {
   try { localStorage.removeItem(meKey()); } catch (e) {}
 }
 
+// ── dare game ──
+function drawDare() {
+  const ids = Object.keys(people);
+  if (!ids.length) return;
+  const pid = ids[Math.floor(Math.random() * ids.length)];
+  const text = DARES[Math.floor(Math.random() * DARES.length)];
+  set(ref(db, "rooms/" + room + "/dare"), {
+    text, forPid: pid, forName: people[pid].name || "?", ts: Date.now(),
+  });
+}
+
+function resolveDare(done) {
+  if (!dare || dare.forPid !== me) return;
+  if (done) {
+    runTransaction(ref(db, "rooms/" + room + "/people/" + me + "/dareScore"),
+      (cur) => (cur || 0) + 1);
+  }
+  remove(ref(db, "rooms/" + room + "/dare"));
+}
+
+function renderDare() {
+  const box = $("dareBox");
+  const area = $("dareArea");
+  const has = Object.keys(people).length > 0;
+  box.classList.toggle("hidden", !has);
+  if (!has) return;
+
+  if (!dare) {
+    area.innerHTML =
+      '<button class="dare-draw" data-draw="1">Draw a dare 🎲</button>' +
+      '<div class="dare-hint">A random dare lands on a random person — everyone watches</div>';
+    return;
+  }
+
+  const isMine = dare.forPid === me;
+  const p = people[dare.forPid];
+  const color = (p && p.color) || "#7CFF6B";
+  area.innerHTML =
+    '<div class="dare-card">' +
+      '<div class="dare-who" style="color:' + color + '"><span id="dareWho"></span>' + (isMine ? " — that's you! 😈" : "") + "</div>" +
+      '<div class="dare-text" id="dareText"></div>' +
+    "</div>" +
+    (isMine
+      ? '<div class="dare-actions">' +
+          '<button class="dare-done" data-daredone="1">Did it ✅ +1 point</button>' +
+          '<button class="dare-pass" data-darepass="1">Pass 🫣</button>' +
+        "</div>"
+      : '<div class="dare-hint">Waiting for them to do it (or chicken out)…</div>');
+  $("dareWho").textContent = (dare.forName || "?") + "'s dare"; // safe text insert
+  $("dareText").textContent = dare.text || "";
+}
+
 function resetNight() {
   if (!confirm("Start a fresh night? All counts reset for everyone.")) return;
   const updates = {};
@@ -312,6 +423,7 @@ function render() {
   $("resetBtn").classList.toggle("hidden", !has);
   $("groupTotal").textContent = entries.reduce((a, [, p]) => a + total(p), 0);
   renderBoard(entries);
+  renderDare();
 
   entries.forEach(([pid, p]) => {
     const isMe = pid === me;
@@ -381,7 +493,8 @@ function renderBoard(entries) {
       '<div class="board-name" style="color:' + (r.p.color || "#F2F0F7") + '"></div>' +
       '<div class="board-bar">' + segs + "</div>" +
       '<div class="board-total">' + r.t + "</div>";
-    row.querySelector(".board-name").textContent = r.p.name || "?";
+    const dp = r.p.dareScore || 0;
+    row.querySelector(".board-name").textContent = (r.p.name || "?") + (dp ? " 🎯" + dp : "");
     rowsEl.appendChild(row);
   });
 
@@ -396,6 +509,9 @@ document.addEventListener("click", (e) => {
   if (!b) return;
   if (b.dataset.delta) bump(b.dataset.p, b.dataset.d, parseInt(b.dataset.delta, 10));
   else if (b.dataset.remove) removePerson(b.dataset.remove);
+  else if (b.dataset.draw) drawDare();
+  else if (b.dataset.daredone) resolveDare(true);
+  else if (b.dataset.darepass) resolveDare(false);
 });
 $("addBtn").addEventListener("click", claimIdentity);
 $("nameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") claimIdentity(); });
