@@ -343,12 +343,10 @@ function removePerson(pid) {
 
 // ── dare game ──
 function drawDare() {
-  const ids = Object.keys(people);
-  if (!ids.length) return;
-  const pid = ids[Math.floor(Math.random() * ids.length)];
+  if (!me || !people[me]) return; // you must be in the room to draw
   const text = DARES[Math.floor(Math.random() * DARES.length)];
   set(ref(db, "rooms/" + room + "/dare"), {
-    text, forPid: pid, forName: people[pid].name || "?", ts: Date.now(),
+    text, forPid: me, forName: people[me].name || "?", ts: Date.now(),
   });
 }
 
@@ -371,7 +369,7 @@ function renderDare() {
   if (!dare) {
     area.innerHTML =
       '<button class="dare-draw" data-draw="1">Draw a dare 🎲</button>' +
-      '<div class="dare-hint">A random dare lands on a random person — everyone watches</div>';
+      '<div class="dare-hint">Draw at your own risk — whoever draws has to do it</div>';
     return;
   }
 
