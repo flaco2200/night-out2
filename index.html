@@ -97,6 +97,19 @@
   .dare-draw { background: linear-gradient(180deg, #2A2440, #201B33); border: 1px solid #7CFF6B; color: #7CFF6B; border-radius: 12px; padding: 13px 22px; font-weight: 700; font-size: 15px; }
   .dare-hint { font-size: 12px; color: #8A8FA3; margin-top: 8px; }
 
+  /* Group chat */
+  .chat-box { background: rgba(255,255,255,.04); border: 1px solid #2E2842; border-radius: 16px; padding: 14px; margin-top: 18px; }
+  .chat-title { font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 10px; color: #4DE1FF; }
+  .chat-msgs { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; -webkit-overflow-scrolling: touch; }
+  .chat-msg { background: #221D36; border-radius: 10px; padding: 8px 12px; font-size: 14px; line-height: 1.35; word-break: break-word; }
+  .chat-msg.mine { background: #2A2440; border: 1px solid #3A3550; }
+  .chat-sender { font-weight: 700; font-size: 12px; margin-right: 6px; }
+  .chat-time { font-size: 10px; color: #5E5875; margin-left: 6px; }
+  .chat-row { display: flex; gap: 8px; }
+  .chat-row input { flex: 1; background: #1B1728; border: 1px solid #332D4A; color: #F2F0F7; border-radius: 10px; padding: 11px 14px; font-size: 15px; font-family: 'Space Grotesk', system-ui; }
+  .chat-send { background: #4DE1FF; color: #0C0A12; border: none; border-radius: 10px; padding: 0 16px; font-weight: 700; font-size: 14px; }
+  .chat-empty { text-align: center; color: #5E5875; font-size: 13px; padding: 10px 0; }
+
   footer { text-align: center; margin-top: 28px; font-size: 13px; color: #8A8FA3; }
 
   .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2A2440; border: 1px solid #4DE1FF; color: #F2F0F7; border-radius: 999px; padding: 12px 20px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,.5); animation: popIn .2s ease; z-index: 10; }
@@ -160,6 +173,15 @@
     </div>
 
     <div class="grid" id="grid"></div>
+
+    <section class="chat-box hidden" id="chatBox">
+      <div class="chat-title">💬 Group Chat</div>
+      <div class="chat-msgs" id="chatMsgs"></div>
+      <div class="chat-row">
+        <input id="chatInput" placeholder="Message the group…" maxlength="200">
+        <button class="chat-send" id="chatSend">Send</button>
+      </div>
+    </section>
   </div>
 
   <footer>Pace yourselves &amp; get home safe 💜 Counts sync live to everyone in the room.</footer>
@@ -167,7 +189,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, update, remove, runTransaction, set, serverTimestamp }
+import { getDatabase, ref, onValue, update, remove, runTransaction, set, serverTimestamp, push, query, limitToLast }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
@@ -230,8 +252,10 @@ let room = null;
 let me = null; // this device's person id in the current room
 let people = {}; // { id: {name, color, counts, lastDrinkAt} }
 let dare = null; // current shared dare { text, forPid, forName }
+let chat = {}; // { msgId: {pid, name, color, text, ts} }
 let unsub = null;
 let unsubDare = null;
+let unsubChat = null;
 
 const meKey = () => "nightout-me-" + room;
 
@@ -285,12 +309,19 @@ function joinRoom(code) {
     dare = snap.val() || null;
     renderDare();
   });
+
+  if (unsubChat) unsubChat();
+  unsubChat = onValue(query(ref(db, "rooms/" + room + "/chat"), limitToLast(50)), (snap) => {
+    chat = snap.val() || {};
+    renderChat();
+  });
 }
 
 function leaveRoom() {
   if (unsub) unsub();
   if (unsubDare) unsubDare();
-  room = null; me = null; people = {}; dare = null;
+  if (unsubChat) unsubChat();
+  room = null; me = null; people = {}; dare = null; chat = {};
   location.hash = "";
   $("appView").classList.add("hidden");
   $("joinView").classList.remove("hidden");
@@ -391,6 +422,55 @@ function renderDare() {
   $("dareText").textContent = dare.text || "";
 }
 
+// ── group chat ──
+function sendMessage() {
+  const input = $("chatInput");
+  const text = input.value.trim();
+  if (!text || !me || !people[me]) return;
+  push(ref(db, "rooms/" + room + "/chat"), {
+    pid: me,
+    name: people[me].name || "?",
+    color: people[me].color || "#4DE1FF",
+    text,
+    ts: Date.now(),
+  });
+  input.value = "";
+}
+
+function renderChat() {
+  const box = $("chatBox");
+  const msgsEl = $("chatMsgs");
+  const inRoom = !!(me && people[me]);
+  box.classList.toggle("hidden", Object.keys(people).length === 0);
+  $("chatInput").disabled = !inRoom;
+  $("chatInput").placeholder = inRoom ? "Message the group…" : "Claim your name to chat";
+
+  const entries = Object.entries(chat).sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
+  msgsEl.innerHTML = "";
+  if (!entries.length) {
+    msgsEl.innerHTML = '<div class="chat-empty">No messages yet — say something 🍻</div>';
+    return;
+  }
+
+  entries.forEach(([, m]) => {
+    const div = document.createElement("div");
+    div.className = "chat-msg" + (m.pid === me ? " mine" : "");
+    const sender = document.createElement("span");
+    sender.className = "chat-sender";
+    sender.style.color = m.color || "#4DE1FF";
+    sender.textContent = m.name || "?";
+    const body = document.createElement("span");
+    body.textContent = m.text || "";
+    const time = document.createElement("span");
+    time.className = "chat-time";
+    const d = new Date(m.ts || 0);
+    time.textContent = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    div.append(sender, body, time);
+    msgsEl.appendChild(div);
+  });
+  msgsEl.scrollTop = msgsEl.scrollHeight; // stick to newest
+}
+
 function resetNight() {
   if (!confirm("Start a fresh night? All counts reset for everyone.")) return;
   const updates = {};
@@ -422,6 +502,7 @@ function render() {
   $("groupTotal").textContent = entries.reduce((a, [, p]) => a + total(p), 0);
   renderBoard(entries);
   renderDare();
+  renderChat();
 
   entries.forEach(([pid, p]) => {
     const isMe = pid === me;
@@ -513,6 +594,8 @@ document.addEventListener("click", (e) => {
 });
 $("addBtn").addEventListener("click", claimIdentity);
 $("nameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") claimIdentity(); });
+$("chatSend").addEventListener("click", sendMessage);
+$("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
 $("resetBtn").addEventListener("click", resetNight);
 $("joinBtn").addEventListener("click", () => joinRoom($("roomInput").value));
 $("roomInput").addEventListener("keydown", (e) => { if (e.key === "Enter") joinRoom($("roomInput").value); });
